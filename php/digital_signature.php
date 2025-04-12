@@ -539,6 +539,7 @@ class FileSigner
                 ];
 
             case 'ElGamal':
+                
                 $privateKey = random_bytes(32);
                 $publicKey = bin2hex($privateKey);
                 return [
