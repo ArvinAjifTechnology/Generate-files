@@ -1,0 +1,13 @@
+{
+  "dependencies": {
+    "@faker-js/faker": "^9.5.0",
+    "crypto": "^1.0.1",
+    "docx-parser": "^0.2.1",
+    "fs": "^0.0.1-security",
+    "jimp": "^1.6.0",
+    "jsqr": "^1.4.0",
+    "mysql2": "^3.14.0",
+    "path": "^0.12.7",
+    "pdf-lib": "^1.17.1"
+  }
+}
