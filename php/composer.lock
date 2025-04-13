@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "0960d9fe420b95b173818b769db693bc",
+    "content-hash": "60d8b4d1f45147089b76fdf8de165c1f",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -59,6 +59,65 @@
                 "source": "https://github.com/Bacon/BaconQrCode/tree/v3.0.1"
             },
             "time": "2024-10-01T13:55:55+00:00"
+        },
+        {
+            "name": "danielburger1337/sha3-shake",
+            "version": "v1.1.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/danielburger1337/sha3-shake-php.git",
+                "reference": "71d64273df7f9d6adec2075ee3e585d9c8f36236"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/danielburger1337/sha3-shake-php/zipball/71d64273df7f9d6adec2075ee3e585d9c8f36236",
+                "reference": "71d64273df7f9d6adec2075ee3e585d9c8f36236",
+                "shasum": ""
+            },
+            "require": {
+                "ext-mbstring": "*",
+                "php": "^8.2"
+            },
+            "require-dev": {
+                "friendsofphp/php-cs-fixer": "^3.50.0",
+                "phpstan/phpstan": "^1.10",
+                "phpunit/phpunit": "^11.0"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-main": "1.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "danielburger1337\\SHA3Shake\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Daniel Burger",
+                    "homepage": "https://github.com/danielburger1337"
+                }
+            ],
+            "description": "SHA-3 SHAKE implementation in PHP",
+            "homepage": "https://github.com/danielburger1337/sha3-shake-php",
+            "keywords": [
+                "sha-3",
+                "sha3",
+                "shake",
+                "shake-128",
+                "shake-256"
+            ],
+            "support": {
+                "issues": "https://github.com/danielburger1337/sha3-shake-php/issues",
+                "source": "https://github.com/danielburger1337/sha3-shake-php/tree/v1.1.1"
+            },
+            "time": "2024-09-08T15:49:44+00:00"
         },
         {
             "name": "dasprid/enum",

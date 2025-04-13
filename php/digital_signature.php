@@ -9,10 +9,10 @@ use kornrunner\Keccak;
 use phpseclib3\Crypt\EC;
 // use phpseclib3\Crypt\ElGamal;
 use Cryptography\ElGamal;
-use Cryptography\SHAKE128;
 use phpseclib3\Crypt\AES;
 use phpseclib3\Crypt\DES;
 use phpseclib3\Crypt\RSA;
+use Cryptography\SHAKE128;
 use Endroid\QrCode\QrCode;
 use phpseclib3\Crypt\Random;
 use Endroid\QrCode\QrOptions;
@@ -29,6 +29,7 @@ use Endroid\QrCode\Label\Font\OpenSans;
 use Endroid\QrCode\ErrorCorrectionLevel;
 use Endroid\QrCode\Label\LabelAlignment;
 use PhpOffice\PhpWord\Shared\ZipArchive;
+use danielburger1337\SHA3Shake\SHA3Shake;
 use Endroid\QrCode\Label\Alignment\LabelAlignmentCenter;
 
 class FileSigner
@@ -185,9 +186,11 @@ class FileSigner
             $hashStart = microtime(true);
             // $hash = hash("shake128", $content, false); // Default hex output
             // $hash = substr($hash, 0, 32); // 16 byte = 32 hex karakter
-            $hash = SHAKE128::hashHex($content, 32);
+            // $hash = SHAKE128::hashHex($content, 32);
+            $hash = SHA3Shake::shake128($content, 64);
             $hashTime = microtime(true) - $hashStart;
-            $hash2 = SHAKE128::hashHex($content2, 32);
+            $hash2 = SHA3Shake::shake128($content2, 64);
+            // $hash2 = SHAKE128::hashHex($content2, 32);
             // $hash2 = hash("shake128", $content2, false); // Default hex output
             // $hash2 = substr($hash, 0, 32); // 16 byte = 32 hex karakter
             // Encrypt the content
