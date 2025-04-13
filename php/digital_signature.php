@@ -3,11 +3,11 @@
 require 'vendor/autoload.php';
 require_once 'Cryptography/ElGamal.php';
 
-use Exception as GlobalException;
 use Zxing\QrReader;
-use Cryptography\ElGamal;
-// use phpseclib3\Crypt\ElGamal;
+use kornrunner\Keccak;
 use phpseclib3\Crypt\EC;
+// use phpseclib3\Crypt\ElGamal;
+use Cryptography\ElGamal;
 use phpseclib3\Crypt\AES;
 use phpseclib3\Crypt\DES;
 use phpseclib3\Crypt\RSA;
@@ -16,6 +16,7 @@ use phpseclib3\Crypt\Random;
 use Endroid\QrCode\QrOptions;
 use Endroid\QrCode\Label\Label;
 use phpseclib3\Math\BigInteger;
+use Exception as GlobalException;
 use Endroid\QrCode\Builder\Builder;
 use Endroid\QrCode\Writer\PngWriter;
 use Endroid\QrCode\Encoding\Encoding;
@@ -170,13 +171,23 @@ class FileSigner
             $startProcessTime = microtime(true);
             $keys = $this->generateKeys($algorithm);
 
-            // Hash the content
-            $hashStart = microtime(true);
-            $hash = hash($hashMode, $content);
-            // $hash = $content;
-            $hashTime = microtime(true) - $hashStart;
-            $hash2 = hash($hashMode, $content2);
+            // // Hash the content
+            // $hashStart = microtime(true);
+            // $hash = hash($hashMode, $content);
+            // // $hash = $content;
+            // $hashTime = microtime(true) - $hashStart;
+            // $hash2 = hash($hashMode, $content2);
 
+            //Khsusus ElGamal
+            // SHAKE128 hash dengan panjang 128 bit
+            $hashStart = microtime(true);
+            // $hash = hash("shake128", $content, false); // Default hex output
+            // $hash = substr($hash, 0, 32); // 16 byte = 32 hex karakter
+            $hash = Keccak::shake128($content, 32);
+            $hashTime = microtime(true) - $hashStart;
+            $hash2 = Keccak::shake128($content2, 32);
+            // $hash2 = hash("shake128", $content2, false); // Default hex output
+            // $hash2 = substr($hash, 0, 32); // 16 byte = 32 hex karakter
             // Encrypt the content
             $encryptionStart = microtime(true);
             $encryption = $this->encryptContent(
@@ -359,7 +370,7 @@ class FileSigner
 
     private function saveToDatabase($data)
     {
-        $sql = "INSERT INTO processed_files2 (
+        $sql = "INSERT INTO experiment_results (
         filename, algorithm, mode, block_mode, stream_mode, original_size, 
         hash, hash_time, message_digest, avalanche, encrypt_time, 
         encrypted_size, entropy_ciphertext, entropy_plaintext, decrypt_time, decrypted_size, verified, 
@@ -603,11 +614,11 @@ class FileSigner
                 // ElGamal + SHA-3
             case 'ElGamal + SHA-3':
                 $elgamal = new ElGamal();
-                $elgamal->p = 251;  // Bilangan prima
-                $elgamal->g = 3;    // Generator
-                // $elgamal->x = random_int(1, $elgamal->p - 2);  // Private key
-                $elgamal->x = 5;  // Private key
-                $elgamal->y = bcpowmod($elgamal->g, $elgamal->x, $elgamal->p); // Public key
+                $elgamal->p = 251; // bisa diganti acak kalau mau dinamis
+                $elgamal->g = 3;
+                $elgamal->x = 5;
+                $elgamal->generatePublicKey(); // hasilin y
+
 
                 return [
                     'private_key' => json_encode([
@@ -872,7 +883,10 @@ class FileSigner
                     $isValid = $publicKey->verify($content, $signature);
 
                     if ($isValid) {
-                        return "Tanda tangan valid. Data tidak diubah.";
+                        return [
+                            'decrypted' => $content,
+                            'signature_valid' => true
+                        ];
                     } else {
                         return "Tanda tangan tidak valid. Data mungkin diubah atau kunci tidak sesuai.";
                     }
@@ -946,10 +960,17 @@ class FileSigner
                 case 'ECDSA + SHA-256':
                     $publicKey = PublicKeyLoader::load($publicKey);
                     $publicKey = $publicKey->withHash('sha256');
-                    $signature = base64_decode($encrypted);
+                    $signature = base64_decode($encryptedContent);
 
                     $isValid = $publicKey->verify($content, $signature);
-                    return $isValid ? "Tanda tangan valid." : "Tanda tangan tidak valid.";
+                    if ($isValid) {
+                        return [
+                            'decrypted' => $content,
+                            'signature_valid' => true
+                        ];
+                    } else {
+                        return "Tanda tangan tidak valid. Data mungkin diubah atau kunci tidak sesuai.";
+                    }
 
                     // ElGamal + SHA-3 (Mock)
                 case 'ElGamal + SHA-3':
@@ -958,9 +979,10 @@ class FileSigner
                     $elgamal->p = $privateParams['p'];
                     $elgamal->g = $privateParams['g'];
                     $elgamal->x = $privateParams['x'];
-                    $elgamal->cipher = json_decode($content, true); // isi dari encrypt()
+                    $elgamal->cipher = json_decode($encryptedContent, true); // isi dari encrypt()
+                    // var_dump($elgamal->cipher);die;  
 
-                    return $elgamal->decrypt();
+                    return $elgamal->decrypt($elgamal->cipher);
 
 
                 case 'ECDSA + RSA':
@@ -1088,24 +1110,35 @@ $dbPass = 'root';
 try {
     $signer = new FileSigner($dbHost, $dbName, $dbUser, $dbPass);
     $results = $signer->processFolder(
-        '../experimen_skripsi2',
+        '../experimen_skripsi4',
+        // 'RSA',
+        // 'ECDSA',
+        // 'RSA + ECDSA',
+        // 'RSA + AES-128 CBC + SHA-3 Keccak',
+        // 'RSA + AES-128 CBC + MD5',
+        // 'RSA + SHA-256',
+        // 'ECDSA + SHA-256',
         'ElGamal + SHA-3',
+        // 'ECDSA + RSA',
+        // 'AES',
+        // 'DES',
+        // '3DES',
         'Hash',
-        'sha3-256',
+        'sha256',
         'cbc'
     );
 
-    print_r($results);
+    // print_r($results);
 
-    // Optionally save results to CSV
-    if (!empty($results)) {
-        $csvFile = fopen('signature_results.csv', 'w');
-        fputcsv($csvFile, array_keys($results[0]));
-        foreach ($results as $row) {
-            fputcsv($csvFile, $row);
-        }
-        fclose($csvFile);
-    }
+    // // Optionally save results to CSV
+    // if (!empty($results)) {
+    //     $csvFile = fopen('signature_results.csv', 'w');
+    //     fputcsv($csvFile, array_keys($results[0]));
+    //     foreach ($results as $row) {
+    //         fputcsv($csvFile, $row);
+    //     }
+    //     fclose($csvFile);
+    // }
 } catch (GlobalException $e) {
     echo "Error: " . $e->getMessage();
 }

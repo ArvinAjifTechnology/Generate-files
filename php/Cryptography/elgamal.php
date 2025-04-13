@@ -75,39 +75,45 @@ class ElGamal
 
     function encrypt()
     {
-        $cipher = [];
+        $cipher = [];  // Pastikan array kosong untuk menyimpan hasil enkripsi
         // Menggabungkan delta dan gamma menjadi array untuk setiap pesan m
         foreach ($this->getAscii() as $m) {
             $k = $this->getK($m);
             $cipher[] = bcpowmod($this->g, $k, $this->p); // gamma
             $cipher[] = bcmod(bcmul(bcpow($this->getKey(), $k), $m), $this->p); // delta
         }
+        $this->cipher = $cipher; // Pastikan menyimpan hasil enkripsi ke dalam $this->cipher
         return $cipher;
     }
 
-    function decrypt()
+
+    function decrypt($ciphertext)
     {
-        if (empty($this->cipher)) {
-            throw new Exception("Cipher text is empty or not initialized.");
+        if (!is_array($ciphertext)) {
+            throw new \Exception("Cipher text must be an array, " . gettype($ciphertext) . " given.");
         }
 
-        $cipher = $this->cipher;
         $delta = [];
         $gamma = [];
-        for ($i = 0; $i < count($cipher); $i++) {
+        for ($i = 0; $i < count($ciphertext); $i++) {
             if ($i % 2 != 0) {
-                $delta[] = $cipher[$i]; // indeks ganjil
+                $delta[] = $ciphertext[$i];
             } else {
-                $gamma[] = $cipher[$i]; // indeks genap
+                $gamma[] = $ciphertext[$i];
             }
         }
+
         $pangkat = $this->p - 1 - $this->x;
+        $hasil = [];
+
         for ($i = 0; $i < count($gamma); $i++) {
-            $xxxx[] = chr(bcmod(bcmul($delta[$i], bcpow($gamma[$i], $pangkat)), $this->p));
+            $hasil[] = chr(bcmod(bcmul($delta[$i], bcpow($gamma[$i], $pangkat)), $this->p));
         }
 
-        return implode('', $xxxx);
+        return implode('', $hasil);
     }
+
+
 
 
     function getK()
