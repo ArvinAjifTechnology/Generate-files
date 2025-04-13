@@ -5,6 +5,7 @@ require 'vendor/autoload.php';
 use Exception as GlobalException;
 use Zxing\QrReader;
 use Cryptography\ElGamal;
+// use phpseclib3\Crypt\ElGamal;
 use phpseclib3\Crypt\EC;
 use phpseclib3\Crypt\AES;
 use phpseclib3\Crypt\DES;
@@ -601,9 +602,10 @@ class FileSigner
                 // ElGamal + SHA-3
             case 'ElGamal + SHA-3':
                 $elgamal = new ElGamal();
-                $elgamal->p = 467;  // Bilangan prima
-                $elgamal->g = 2;    // Generator
-                $elgamal->x = random_int(1, $elgamal->p - 2);  // Private key
+                $elgamal->p = 251;  // Bilangan prima
+                $elgamal->g = 3;    // Generator
+                // $elgamal->x = random_int(1, $elgamal->p - 2);  // Private key
+                $elgamal->x = 5;  // Private key
                 $elgamal->y = bcpowmod($elgamal->g, $elgamal->x, $elgamal->p); // Public key
 
                 return [
@@ -797,8 +799,16 @@ class FileSigner
 
                     // ElGamal + SHA-3 (Mock)
                 case 'ElGamal + SHA-3':
-                    // Ini hanya mock untuk demonstrasi, bukan implementasi kriptografi ElGamal yang sesungguhnya.
-                    return base64_encode($content . '_elgamal_sha3');
+                    $publicParams = json_decode($publicKey, true);
+
+                    $elgamal = new ElGamal();
+                    $elgamal->p = $publicParams['p'];
+                    $elgamal->g = $publicParams['g'];
+                    $elgamal->y = $publicParams['y'];
+                    $elgamal->text = $content;
+
+                    return json_encode($elgamal->encrypt());
+
 
                 case 'ECDSA + RSA':
                     $ec = PublicKeyLoader::load($ecdsaPrivateKey);
@@ -941,9 +951,16 @@ class FileSigner
                     return $isValid ? "Tanda tangan valid." : "Tanda tangan tidak valid.";
 
                     // ElGamal + SHA-3 (Mock)
-                case 'ElGamal + SHA-3':
-                    // Mock verifikasi – implementasi nyata butuh lib ElGamal yang sesungguhnya
-                    return str_replace('_elgamal_sha3', '', base64_decode($encrypted));
+                case 'ElGamal':
+                    $privateParams = json_decode($privateKey, true);
+                    $elgamal = new ElGamal();
+                    $elgamal->p = $privateParams['p'];
+                    $elgamal->g = $privateParams['g'];
+                    $elgamal->x = $privateParams['x'];
+                    $elgamal->cipher = json_decode($content, true); // isi dari encrypt()
+
+                    return $elgamal->decrypt();
+
 
                 case 'ECDSA + RSA':
                     $encryptedContent = $encrypted;
@@ -1071,7 +1088,7 @@ try {
     $signer = new FileSigner($dbHost, $dbName, $dbUser, $dbPass);
     $results = $signer->processFolder(
         '../experimen_skripsi2',
-        'AES',
+        'ElGamal + SHA-3',
         'Hash',
         'sha3-256',
         'cbc'
