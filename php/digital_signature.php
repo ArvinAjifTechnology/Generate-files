@@ -2,12 +2,14 @@
 
 require 'vendor/autoload.php';
 require_once 'Cryptography/ElGamal.php';
+require_once 'Cryptography/SHAKE128.php';
 
 use Zxing\QrReader;
 use kornrunner\Keccak;
 use phpseclib3\Crypt\EC;
 // use phpseclib3\Crypt\ElGamal;
 use Cryptography\ElGamal;
+use Cryptography\SHAKE128;
 use phpseclib3\Crypt\AES;
 use phpseclib3\Crypt\DES;
 use phpseclib3\Crypt\RSA;
@@ -166,7 +168,7 @@ class FileSigner
         } else {
             $content2 = 'a'; // fallback
         }
-
+        // var_dump($content2);die;
         if ($content) {
             $startProcessTime = microtime(true);
             $keys = $this->generateKeys($algorithm);
@@ -183,9 +185,9 @@ class FileSigner
             $hashStart = microtime(true);
             // $hash = hash("shake128", $content, false); // Default hex output
             // $hash = substr($hash, 0, 32); // 16 byte = 32 hex karakter
-            $hash = Keccak::shake128($content, 32);
+            $hash = SHAKE128::hashHex($content, 32);
             $hashTime = microtime(true) - $hashStart;
-            $hash2 = Keccak::shake128($content2, 32);
+            $hash2 = SHAKE128::hashHex($content2, 32);
             // $hash2 = hash("shake128", $content2, false); // Default hex output
             // $hash2 = substr($hash, 0, 32); // 16 byte = 32 hex karakter
             // Encrypt the content
