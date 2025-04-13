@@ -648,7 +648,7 @@ class FileSigner
 
             case 'AES':
                 return [
-                    'private_key' => bin2hex(random_bytes(32)),
+                    'private_key' => bin2hex(random_bytes(16)),
                     'public_key' => '',
                 ];
 
@@ -1059,9 +1059,9 @@ try {
     $signer = new FileSigner($dbHost, $dbName, $dbUser, $dbPass);
     $results = $signer->processFolder(
         '../experimen_skripsi2',
-        'RSA + SHA-256',
+        'AES',
         'Hash',
-        'sha256',
+        'sha3-256',
         'cbc'
     );
 

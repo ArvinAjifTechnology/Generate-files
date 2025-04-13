@@ -1,0 +1,5 @@
+{
+    "require": {
+        "kornrunner/keccak": "^1.1"
+    }
+}

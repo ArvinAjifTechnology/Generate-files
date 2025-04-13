@@ -1,13 +1,16 @@
 <?php
 
-class elgamal
-{
+namespace Cryptography;
 
-    var $x;
-    var $p;
-    var $g;
-    var $y;
-    var $text;
+class ElGamal
+{
+    var $x; // Kunci privat
+    var $p; // Bilangan prima
+    var $g; // Generator
+    var $y; // Kunci publik (y = g^x mod p)
+    var $text; // Teks yang akan dienkripsi
+    var $cipher; // Cipher untuk dekripsi
+
     function isPrime($number)
     {
         // 1 is not prime
@@ -34,35 +37,47 @@ class elgamal
         }
     }
 
-    function getKey()
+    function generatePublicKey()
     {
-        //todo mendapatkan kunci publik
+        // Menghitung kunci publik
         if (!$this->isPrime($this->p)) {
             echo "[+] Pastikan kolom bilangan prima adalah bilangan prima\n";
             exit("keluar");
         }
-        return  bcpowmod($this->g, $this->x, $this->p);
+
+        // y = g^x mod p
+        $this->y = bcpowmod($this->g, $this->x, $this->p);
+        return $this->y;
+    }
+
+    function getKey()
+    {
+        // Menghasilkan kunci publik (y) atau kunci privat (x)
+        return $this->y;  // public key
     }
 
     function pecahString()
     {
-        //todo memecah teks menjadi array
+        // Memecah teks menjadi array karakter
         return str_split($this->text);
     }
+
     function getAscii()
     {
+        // Mengonversi teks menjadi representasi ASCII
         foreach ($this->pecahString() as $pecahan) {
             $ascii[] = ord($pecahan);
         }
         return $ascii;
     }
+
     function encrypt()
     {
-        //menggabungkan delta dan gamma menjadi array setiap m
+        // Menggabungkan delta dan gamma menjadi array untuk setiap pesan m
         foreach ($this->getAscii() as $m) {
             $k = $this->getK($m);
-            $cipher[] = bcpowmod($this->g, $k, $this->p); //gamma
-            $cipher[] = bcmod(bcmul(bcpow($this->getKey(), $k), $m), $this->p); //delta
+            $cipher[] = bcpowmod($this->g, $k, $this->p); // gamma
+            $cipher[] = bcmod(bcmul(bcpow($this->getKey(), $k), $m), $this->p); // delta
         }
         return $cipher;
     }
@@ -72,22 +87,21 @@ class elgamal
         $cipher = $this->cipher;
         for ($i = 0; $i < count($cipher); $i++) {
             if ($i % 2 != 0) {
-                $delta[] = $cipher[$i]; //indeks ganjil
+                $delta[] = $cipher[$i]; // indeks ganjil
             } else {
                 $gamma[] = $cipher[$i]; // indeks genap
             }
         }
         $pangkat = $this->p - 1 - $this->x;
         for ($i = 0; $i < count($gamma); $i++) {
-
             $xxxx[] = chr(bcmod(bcmul($delta[$i], bcpow($gamma[$i], $pangkat)), $this->p));
         }
 
         return implode('', $xxxx);
     }
+
     function getK()
     {
-        return rand(1, ($this->p - 2)); //random number
+        return rand(1, ($this->p - 2)); // Random number untuk k
     }
 }
-
