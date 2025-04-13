@@ -4,7 +4,7 @@ require 'vendor/autoload.php';
 
 use Exception as GlobalException;
 use Zxing\QrReader;
-use phpseclib3\Crypt\ElGamal;
+use Cryptography\ElGamal;
 use phpseclib3\Crypt\EC;
 use phpseclib3\Crypt\AES;
 use phpseclib3\Crypt\DES;
@@ -600,11 +600,23 @@ class FileSigner
 
                 // ElGamal + SHA-3
             case 'ElGamal + SHA-3':
-                $privateKey = random_bytes(32);
-                $publicKey = bin2hex($privateKey);
+                $elgamal = new ElGamal();
+                $elgamal->p = 467;  // Bilangan prima
+                $elgamal->g = 2;    // Generator
+                $elgamal->x = random_int(1, $elgamal->p - 2);  // Private key
+                $elgamal->y = bcpowmod($elgamal->g, $elgamal->x, $elgamal->p); // Public key
+
                 return [
-                    'private_key' => $privateKey,
-                    'public_key' => $publicKey,
+                    'private_key' => json_encode([
+                        'p' => $elgamal->p,
+                        'g' => $elgamal->g,
+                        'x' => $elgamal->x,
+                    ]),
+                    'public_key' => json_encode([
+                        'p' => $elgamal->p,
+                        'g' => $elgamal->g,
+                        'y' => $elgamal->y,
+                    ]),
                 ];
 
             case 'RSA + SHA-256':
@@ -648,7 +660,7 @@ class FileSigner
 
             case 'AES':
                 return [
-                    'private_key' => bin2hex(random_bytes(16)),
+                    'private_key' => bin2hex(random_bytes(32)),
                     'public_key' => '',
                 ];
 
