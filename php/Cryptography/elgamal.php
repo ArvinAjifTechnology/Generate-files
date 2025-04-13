@@ -2,6 +2,8 @@
 
 namespace Cryptography;
 
+use Exception;
+
 class ElGamal
 {
     var $x; // Kunci privat
@@ -73,6 +75,7 @@ class ElGamal
 
     function encrypt()
     {
+        $cipher = [];
         // Menggabungkan delta dan gamma menjadi array untuk setiap pesan m
         foreach ($this->getAscii() as $m) {
             $k = $this->getK($m);
@@ -84,7 +87,13 @@ class ElGamal
 
     function decrypt()
     {
+        if (empty($this->cipher)) {
+            throw new Exception("Cipher text is empty or not initialized.");
+        }
+
         $cipher = $this->cipher;
+        $delta = [];
+        $gamma = [];
         for ($i = 0; $i < count($cipher); $i++) {
             if ($i % 2 != 0) {
                 $delta[] = $cipher[$i]; // indeks ganjil
@@ -99,6 +108,7 @@ class ElGamal
 
         return implode('', $xxxx);
     }
+
 
     function getK()
     {

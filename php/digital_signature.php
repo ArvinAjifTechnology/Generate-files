@@ -1,6 +1,7 @@
 <?php
 
 require 'vendor/autoload.php';
+require_once 'Cryptography/ElGamal.php';
 
 use Exception as GlobalException;
 use Zxing\QrReader;
@@ -951,7 +952,7 @@ class FileSigner
                     return $isValid ? "Tanda tangan valid." : "Tanda tangan tidak valid.";
 
                     // ElGamal + SHA-3 (Mock)
-                case 'ElGamal':
+                case 'ElGamal + SHA-3':
                     $privateParams = json_decode($privateKey, true);
                     $elgamal = new ElGamal();
                     $elgamal->p = $privateParams['p'];
