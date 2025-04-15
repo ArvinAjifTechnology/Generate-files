@@ -3,7 +3,7 @@ const path = require("path");
 const crypto = require("crypto");
 const mysql = require("mysql2/promise");
 
-// Konfigurasi Database
+// Database Configuration
 const dbConfig = {
   host: "localhost",
   user: "root",
@@ -11,11 +11,12 @@ const dbConfig = {
   database: "kriptografi",
   connectionLimit: 10,
 };
-console.log(crypto.getCurves());
-// Buat koneksi pool
+
+// Create connection pool
 const pool = mysql.createPool(dbConfig);
 
 // ========== ENCRYPTION/DECRYPTION FUNCTIONS ==========
+
 // AES Encryption
 async function encryptAES(data, key, iv, mode = "cbc") {
   const cipher = crypto.createCipheriv(
@@ -42,55 +43,51 @@ async function decryptAES(encryptedData, key, iv, mode = "cbc") {
 
 // ECC Encryption
 async function encryptECC(data, publicKey) {
-  // Create ECDH instance and generate keys
-  const ecdh = crypto.createECDH('c2pnb163v3');
+  const ecdh = crypto.createECDH("c2pnb163v3");
   const ecdhPrivateKey = ecdh.generateKeys();
   const ecdhPublicKey = ecdh.getPublicKey();
-  
-  // Derive shared secret
+
   const sharedSecret = ecdh.computeSecret(publicKey, "base64");
-  
-  // Use the shared secret to create an AES key
-  const derivedKey = crypto.createHash('sha256').update(sharedSecret).digest();
+  const derivedKey = crypto.createHash("sha256").update(sharedSecret).digest();
   const iv = crypto.randomBytes(16);
-  
-  // Encrypt the data with AES
-  const cipher = crypto.createCipheriv('aes-256-cbc', derivedKey, iv);
+
+  const cipher = crypto.createCipheriv("aes-256-cbc", derivedKey, iv);
   const encrypted = Buffer.concat([cipher.update(data), cipher.final()]);
-  
+
   return {
     ciphertext: encrypted,
     publicKey: ecdhPublicKey,
-    iv: iv
+    iv: iv,
   };
 }
 
 // ECC Decryption
 async function decryptECC(encryptedData, privateKey) {
-  // Create ECDH instance with our private key
-  const ecdh = crypto.createECDH('c2pnb163v3');
+  const ecdh = crypto.createECDH("c2pnb163v3");
   ecdh.setPrivateKey(privateKey, "base64");
-  
-  // Derive shared secret
+
   const sharedSecret = ecdh.computeSecret(encryptedData.publicKey, "base64");
-  
-  // Use the shared secret to create an AES key
-  const derivedKey = crypto.createHash('sha256').update(sharedSecret).digest();
-  
-  // Decrypt the data with AES
-  const decipher = crypto.createDecipheriv('aes-256-cbc', derivedKey, encryptedData.iv);
-  return Buffer.concat([decipher.update(encryptedData.ciphertext), decipher.final()]);
+  const derivedKey = crypto.createHash("sha256").update(sharedSecret).digest();
+
+  const decipher = crypto.createDecipheriv(
+    "aes-256-cbc",
+    derivedKey,
+    encryptedData.iv
+  );
+  return Buffer.concat([
+    decipher.update(encryptedData.ciphertext),
+    decipher.final(),
+  ]);
 }
+
 // Hybrid AES+ECC Encryption
 async function encryptHybridAESECC(data, keys, mode = "cbc") {
-  // Enkripsi data dengan AES terlebih dahulu
   const aesEncrypted = await encryptAES(
     data,
     { key: keys.aesKey, iv: keys.aesIv },
     mode
   );
 
-  // Enkripsi kunci AES dengan ECC
   const encryptedKey = await encryptECC(keys.aesKey, keys.eccPublicKey);
 
   return {
@@ -102,10 +99,8 @@ async function encryptHybridAESECC(data, keys, mode = "cbc") {
   };
 }
 
-
 // Hybrid AES+ECC Decryption
 async function decryptHybridAESECC(encryptedData, keys) {
-  // Dekripsi kunci AES dengan ECC terlebih dahulu
   const aesKey = await decryptECC(
     {
       ciphertext: encryptedData.encryptedKey,
@@ -115,7 +110,6 @@ async function decryptHybridAESECC(encryptedData, keys) {
     keys.eccPrivateKey
   );
 
-  // Dekripsi data dengan AES
   return await decryptAES(
     { ciphertext: encryptedData.ciphertext },
     { key: aesKey, iv: encryptedData.iv },
@@ -123,74 +117,68 @@ async function decryptHybridAESECC(encryptedData, keys) {
   );
 }
 
-// ========== CAESAR CIPHER ==========
+// ========== CLASSICAL CIPHERS ==========
+
+// Caesar Cipher Encryption
 async function encryptCaesar(plaintext, shift) {
-  shift = shift % 26; // Ensure shift is within 0-25
-  let ciphertext = '';
-  
+  shift = shift % 26;
+  let ciphertext = "";
+
   for (let i = 0; i < plaintext.length; i++) {
     let charCode = plaintext.charCodeAt(i);
-    
-    // Handle uppercase letters
+
     if (charCode >= 65 && charCode <= 90) {
       charCode = ((charCode - 65 + shift) % 26) + 65;
-    }
-    // Handle lowercase letters
-    else if (charCode >= 97 && charCode <= 122) {
+    } else if (charCode >= 97 && charCode <= 122) {
       charCode = ((charCode - 97 + shift) % 26) + 97;
     }
-    // Other characters remain unchanged
-    
+
     ciphertext += String.fromCharCode(charCode);
   }
-  
-  return { ciphertext: Buffer.from(ciphertext, 'utf-8') };
+
+  return { ciphertext: Buffer.from(ciphertext, "utf-8") };
 }
 
+// Caesar Cipher Decryption
 async function decryptCaesar(ciphertext, shift) {
-  shift = shift % 26; // Ensure shift is within 0-25
-  const text = ciphertext.ciphertext.toString('utf-8');
-  let plaintext = '';
-  
+  shift = shift % 26;
+  const text = ciphertext.ciphertext.toString("utf-8");
+  let plaintext = "";
+
   for (let i = 0; i < text.length; i++) {
     let charCode = text.charCodeAt(i);
-    
-    // Handle uppercase letters
+
     if (charCode >= 65 && charCode <= 90) {
       charCode = ((charCode - 65 - shift + 26) % 26) + 65;
-    }
-    // Handle lowercase letters
-    else if (charCode >= 97 && charCode <= 122) {
+    } else if (charCode >= 97 && charCode <= 122) {
       charCode = ((charCode - 97 - shift + 26) % 26) + 97;
     }
-    // Other characters remain unchanged
-    
+
     plaintext += String.fromCharCode(charCode);
   }
-  
-  return Buffer.from(plaintext, 'utf-8');
+
+  return Buffer.from(plaintext, "utf-8");
 }
 
-// ========== TRANSPOSITION CIPHER ==========
+// Transposition Cipher Encryption
 async function encryptTransposition(plaintext, key) {
-  // Remove any non-alphabetic characters and convert to uppercase
-  const cleanedText = plaintext.toString('utf-8').replace(/[^a-zA-Z]/g, '').toUpperCase();
+  const cleanedText = plaintext
+    .toString("utf-8")
+    .replace(/[^a-zA-Z]/g, "")
+    .toUpperCase();
   const keyLength = key.length;
   const numRows = Math.ceil(cleanedText.length / keyLength);
-  
-  // Create a grid
+
   const grid = [];
   for (let i = 0; i < numRows; i++) {
     const start = i * keyLength;
     const end = start + keyLength;
     grid.push(cleanedText.slice(start, end));
   }
-  
-  // Get the order of columns based on the key
+
   const keyOrder = getKeyOrder(key);
-  
-  // Read columns in the order specified by the key
-  let ciphertext = '';
+
+  let ciphertext = "";
   for (const col of keyOrder) {
     for (let row = 0; row < numRows; row++) {
       if (col < grid[row].length) {
@@ -198,37 +186,36 @@ async function encryptTransposition(plaintext, key) {
       }
     }
   }
-  
-  return { ciphertext: Buffer.from(ciphertext, 'utf-8') };
+
+  return { ciphertext: Buffer.from(ciphertext, "utf-8") };
 }
 
+// Transposition Cipher Decryption
 async function decryptTransposition(ciphertext, key) {
-  const text = ciphertext.ciphertext.toString('utf-8');
+  const text = ciphertext.ciphertext.toString("utf-8");
   const keyLength = key.length;
   const textLength = text.length;
   const numRows = Math.ceil(textLength / keyLength);
-  
-  // Get the order of columns based on the key
+
   const keyOrder = getKeyOrder(key);
-  
-  // Calculate how many full columns we have and how many extra letters in partial columns
   const fullCols = textLength % keyLength;
-  const rowsPerCol = fullCols === 0 ? numRows : Math.ceil(textLength / keyLength);
-  
-  // Reconstruct the grid
-  const grid = Array(numRows).fill().map(() => Array(keyLength).fill(''));
-  
+  const rowsPerCol =
+    fullCols === 0 ? numRows : Math.ceil(textLength / keyLength);
+
+  const grid = Array(numRows)
+    .fill()
+    .map(() => Array(keyLength).fill(""));
+
   let index = 0;
   for (const col of keyOrder) {
     const rowsInThisCol = col < fullCols ? rowsPerCol : rowsPerCol - 1;
-    
+
     for (let row = 0; row < rowsInThisCol && index < textLength; row++) {
       grid[row][col] = text[index++];
     }
   }
-  
-  // Read the grid row by row
-  let plaintext = '';
+
+  let plaintext = "";
   for (let row = 0; row < numRows; row++) {
     for (let col = 0; col < keyLength; col++) {
       if (grid[row][col]) {
@@ -236,29 +223,57 @@ async function decryptTransposition(ciphertext, key) {
       }
     }
   }
-  
-  return Buffer.from(plaintext, 'utf-8');
+
+  return Buffer.from(plaintext, "utf-8");
 }
 
-// Helper function for transposition cipher
+// Combined Caesar + Transposition Cipher
+async function encryptCaesarTransposition(plaintext, keys) {
+  const caesarEncrypted = await encryptCaesar(plaintext, keys.caesarShift);
+  const transpositionEncrypted = await encryptTransposition(
+    caesarEncrypted.ciphertext.toString("utf-8"),
+    keys.transpositionKey
+  );
+
+  return {
+    ciphertext: transpositionEncrypted.ciphertext,
+    caesarShift: keys.caesarShift,
+    transpositionKey: keys.transpositionKey,
+  };
+}
+
+async function decryptCaesarTransposition(encryptedData, keys) {
+  const transpositionDecrypted = await decryptTransposition(
+    encryptedData,
+    keys.transpositionKey
+  );
+
+  const caesarDecrypted = await decryptCaesar(
+    { ciphertext: transpositionDecrypted },
+    keys.caesarShift
+  );
+
+  return caesarDecrypted;
+}
+
+// Helper function for Transposition Cipher
 function getKeyOrder(key) {
-  // Create an array of objects with character and original index
-  const keyChars = key.toUpperCase().split('').map((char, index) => ({
-    char,
-    index
-  }));
-  
-  // Sort the array based on character code
+  const keyChars = key
+    .toUpperCase()
+    .split("")
+    .map((char, index) => ({
+      char,
+      index,
+    }));
+
   keyChars.sort((a, b) => a.char.localeCompare(b.char));
-  
-  // Create a mapping from original position to sorted position
+
   const order = Array(key.length);
   keyChars.forEach((item, sortedIndex) => {
     order[item.index] = sortedIndex;
   });
-  
-  // Return the order of columns (original indices sorted by their character)
-  return keyChars.map(item => item.index);
+
+  return keyChars.map((item) => item.index);
 }
 
 // ========== DATABASE FUNCTIONS ==========
@@ -278,7 +293,7 @@ async function verifyDatabaseSchema() {
         decrypt_time DOUBLE NOT NULL,
         entropy_ciphertext DOUBLE NOT NULL,
         entropy_plaintext DOUBLE NOT NULL,
-        avalanche DOUBLE NOT NULL,
+        avalanche_effect DOUBLE NOT NULL,
         verified VARCHAR(10) NOT NULL,
         total_process_time DOUBLE NOT NULL,
         ciphertext_path VARCHAR(255),
@@ -291,15 +306,15 @@ async function verifyDatabaseSchema() {
         aes_iv BLOB,
         ecc_public_key TEXT,
         ecc_private_key TEXT,
-        'caesar_key',
-        'transposition_key',
+        caesar_key INT,
+        transposition_key VARCHAR(255),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
-    console.log("Tabel database sudah diverifikasi/dibuat");
+    console.log("Database table verified/created");
   } catch (error) {
-    console.error("Gagal memverifikasi skema database:", error);
+    console.error("Failed to verify database schema:", error);
     throw error;
   } finally {
     connection.release();
@@ -315,7 +330,7 @@ async function processFilesFromFolder(
 ) {
   try {
     if (!fs.existsSync(folderPath)) {
-      throw new Error(`Folder tidak ditemukan: ${folderPath}`);
+      throw new Error(`Folder not found: ${folderPath}`);
     }
 
     const algorithmFolder = `./encrypted_${algorithm.toLowerCase()}`;
@@ -332,7 +347,7 @@ async function processFilesFromFolder(
       const stats = fs.statSync(filePath);
 
       if (stats.isFile()) {
-        console.log(`Memproses file: ${file}`);
+        console.log(`Processing file: ${file}`);
         const result = await processSingleFile(
           filePath,
           algorithm,
@@ -348,7 +363,7 @@ async function processFilesFromFolder(
 
     return results;
   } catch (error) {
-    console.error("Error saat memproses file:", error);
+    console.error("Error processing files:", error);
     throw error;
   }
 }
@@ -367,7 +382,7 @@ async function processSingleFile(
   const originalSize = content.length;
   const keys = generateEncryptionKey(algorithm, blockMode);
 
-  // Enkripsi
+  // Encryption
   const encryptStart = Date.now();
   const encrypted = await encryptData(
     content,
@@ -382,7 +397,7 @@ async function processSingleFile(
   const ciphertextPath = path.join(algorithmFolder, `${filename}.enc`);
   await fs.promises.writeFile(ciphertextPath, encrypted.ciphertext);
 
-  // Dekripsi
+  // Decryption
   const decryptStart = Date.now();
   const decrypted = await decryptData(
     encrypted,
@@ -397,7 +412,7 @@ async function processSingleFile(
   const decryptedPath = path.join(decryptedFolder, filename);
   await fs.promises.writeFile(decryptedPath, decrypted);
 
-  // Hitung metrik
+  // Calculate metrics
   const sampleSize = Math.min(1024, content.length);
   const sample = content.slice(0, sampleSize);
   const encryptedSample = encrypted.ciphertext.slice(0, sampleSize);
@@ -420,6 +435,7 @@ async function processSingleFile(
     encryptedModified.ciphertext.slice(0, sampleSize)
   );
 
+  // Prepare result object
   const result = {
     filename,
     algorithm,
@@ -444,6 +460,8 @@ async function processSingleFile(
     aes_iv: keys.aesIv || null,
     ecc_public_key: keys.eccPublicKey || null,
     ecc_private_key: keys.eccPrivateKey || null,
+    caesar_key: keys.caesarShift || null,
+    transposition_key: keys.transpositionKey || null,
   };
 
   return result;
@@ -451,6 +469,18 @@ async function processSingleFile(
 
 // ========== HELPER FUNCTIONS ==========
 function generateEncryptionKey(algorithm, blockMode) {
+  const possibleKeys = [
+    "SECRET",
+    "KEY",
+    "CIPHER",
+    "CODE",
+    "CRYPTO",
+    "ALGORITHM",
+    "ENCRYPT",
+    "DECRYPT",
+    "SECURITY",
+  ];
+
   switch (algorithm.toUpperCase()) {
     case "AES":
       return {
@@ -470,7 +500,7 @@ function generateEncryptionKey(algorithm, blockMode) {
       };
 
     case "AES+ECC":
-      const hybridAesKey = crypto.randomBytes(32); // AES-256
+      const hybridAesKey = crypto.randomBytes(32);
       const hybridAesIv = blockMode ? crypto.randomBytes(16) : null;
 
       const { publicKey: eccPubKey, privateKey: eccPrivKey } =
@@ -488,8 +518,22 @@ function generateEncryptionKey(algorithm, blockMode) {
         type: "hybrid",
       };
 
+    case "CAESAR":
+      return Math.floor(Math.random() * 25) + 1;
+
+    case "TRANSPOSITION":
+      return possibleKeys[Math.floor(Math.random() * possibleKeys.length)];
+
+    case "CAESAR+TRANSPOSITION":
+      return {
+        caesarShift: Math.floor(Math.random() * 25) + 1,
+        transpositionKey:
+          possibleKeys[Math.floor(Math.random() * possibleKeys.length)],
+        type: "combined",
+      };
+
     default:
-      throw new Error(`Algoritma tidak didukung: ${algorithm}`);
+      throw new Error(`Algorithm not supported: ${algorithm}`);
   }
 }
 
@@ -502,11 +546,17 @@ async function encryptData(data, algorithm, key, iv, mode, blockMode) {
         return await encryptECC(data, key.publicKey);
       case "AES+ECC":
         return await encryptHybridAESECC(data, key, blockMode || "cbc");
+      case "CAESAR":
+        return await encryptCaesar(data.toString("utf-8"), key);
+      case "TRANSPOSITION":
+        return await encryptTransposition(data, key);
+      case "CAESAR+TRANSPOSITION":
+        return await encryptCaesarTransposition(data.toString("utf-8"), key);
       default:
-        throw new Error(`Algoritma enkripsi tidak didukung: ${algorithm}`);
+        throw new Error(`Encryption algorithm not supported: ${algorithm}`);
     }
   } catch (error) {
-    console.error("Gagal enkripsi:", error);
+    console.error("Encryption failed:", error);
     throw error;
   }
 }
@@ -519,12 +569,22 @@ async function decryptData(encryptedData, algorithm, key, iv, mode, blockMode) {
       case "ECC":
         return await decryptECC(encryptedData, key.privateKey);
       case "AES+ECC":
-        return await decryptHybridAESECC(data, key, blockMode || "cbc");
+        return await decryptHybridAESECC(
+          encryptedData,
+          key,
+          blockMode || "cbc"
+        );
+      case "CAESAR":
+        return await decryptCaesar(encryptedData, key);
+      case "TRANSPOSITION":
+        return await decryptTransposition(encryptedData, key);
+      case "CAESAR+TRANSPOSITION":
+        return await decryptCaesarTransposition(encryptedData, key);
       default:
-        throw new Error(`Algoritma dekripsi tidak didukung: ${algorithm}`);
+        throw new Error(`Decryption algorithm not supported: ${algorithm}`);
     }
   } catch (error) {
-    console.error("Gagal dekripsi:", error);
+    console.error("Decryption failed:", error);
     throw error;
   }
 }
@@ -567,7 +627,7 @@ async function storeResultInDatabase(result) {
   try {
     await connection.query(`INSERT INTO enkripsi_data_node_js SET ?`, [result]);
   } catch (error) {
-    console.error("Error database:", error);
+    console.error("Database error:", error);
     throw error;
   } finally {
     connection.release();
@@ -578,15 +638,31 @@ async function storeResultInDatabase(result) {
 (async () => {
   try {
     await verifyDatabaseSchema();
-    const results = await processFilesFromFolder(
+
+    // Example usage with different algorithms
+    const results1 = await processFilesFromFolder("./large_files2", "CAESAR");
+    const results2 = await processFilesFromFolder(
+      "./large_files2",
+      "TRANSPOSITION"
+    );
+    const results3 = await processFilesFromFolder(
+      "./large_files2",
+      "CAESAR+TRANSPOSITION"
+    );
+    const results4 = await processFilesFromFolder(
       "./large_files2",
       "AES+ECC",
       "CBC",
       "CBC"
     );
-    console.log(`Proses selesai. Total file diproses: ${results.length}`);
+
+    console.log(
+      `Processing complete. Total files processed: ${
+        results1.length + results2.length + results3.length + results4.length
+      }`
+    );
   } catch (error) {
-    console.error("Error fatal:", error);
+    console.error("Fatal error:", error);
     process.exit(1);
   } finally {
     await pool.end();
