@@ -48,6 +48,49 @@ class FileSigner
         }
     }
 
+    // public function processFolder($folderPath, $algorithm, $mode, $hashMode = null, $blockMode = null, $streamMode = null)
+    // {
+    //     if (!is_dir($folderPath)) {
+    //         throw new Exception("Folder not found: $folderPath");
+    //     }
+
+    //     $files = scandir($folderPath);
+    //     $validFiles = [];
+
+    //     // Kumpulkan file-file yang valid (bukan . atau ..) beserta ukurannya
+    //     foreach ($files as $file) {
+    //         if ($file === '.' || $file === '..') {
+    //             continue;
+    //         }
+
+    //         $filePath = $folderPath . DIRECTORY_SEPARATOR . $file;
+    //         $fileSize = filesize($filePath);
+    //         $validFiles[] = [
+    //             'path' => $filePath,
+    //             'size' => $fileSize,
+    //             'name' => $file
+    //         ];
+    //     }
+
+    //     // Urutkan file berdasarkan ukuran dari yang terkecil
+    //     usort($validFiles, function ($a, $b) {
+    //         return $a['size'] - $b['size'];
+    //     });
+
+    //     $totalFiles = count($validFiles);
+    //     $processedCount = 0;
+
+    //     // Proses file yang sudah diurutkan
+    //     foreach ($validFiles as $fileInfo) {
+    //         $this->processFile($fileInfo['path'], $algorithm, $mode, $hashMode, $blockMode, $streamMode);
+
+    //         $processedCount++;
+    //         $progress = round(($processedCount / $totalFiles) * 100);
+    //         echo "Progress: $progress% - Processing: {$fileInfo['name']} (Size: {$fileInfo['size']} bytes)\n";
+    //     }
+
+    //     return $this->results;
+    // }
     public function processFolder($folderPath, $algorithm, $mode, $hashMode = null, $blockMode = null, $streamMode = null)
     {
         if (!is_dir($folderPath)) {
@@ -57,14 +100,14 @@ class FileSigner
         $files = scandir($folderPath);
         $validFiles = [];
 
-        // Kumpulkan file-file yang valid (bukan . atau ..) beserta ukurannya
+        // Kumpulkan file-file yang valid (bukan . atau ..)
         foreach ($files as $file) {
             if ($file === '.' || $file === '..') {
                 continue;
             }
 
             $filePath = $folderPath . DIRECTORY_SEPARATOR . $file;
-            $fileSize = filesize($filePath);
+            $fileSize = filesize($filePath);  // Ukuran dalam byte
             $validFiles[] = [
                 'path' => $filePath,
                 'size' => $fileSize,
@@ -72,9 +115,32 @@ class FileSigner
             ];
         }
 
-        // Urutkan file berdasarkan ukuran dari yang terkecil
+        // Fungsi untuk ekstrak ukuran dari nama file (misal, "file_199MB.txt" menjadi 199)
+        function extractSizeFromFilename($filename)
+        {
+            preg_match('/(\d+)(MB|KB|GB)/i', $filename, $matches);
+            if ($matches) {
+                // Jika ada ukuran dalam MB, KB, atau GB
+                $size = (int)$matches[1];
+                $unit = strtoupper($matches[2]);
+
+                // Konversi ukuran ke dalam MB
+                if ($unit === 'KB') {
+                    return $size / 1024;  // Konversi KB ke MB
+                } elseif ($unit === 'GB') {
+                    return $size * 1024;  // Konversi GB ke MB
+                }
+
+                return $size;  // Sudah dalam MB
+            }
+            return 0;  // Defaultkan ke 0 jika tidak ada ukuran
+        }
+
+        // Urutkan file berdasarkan ukuran yang diekstrak dari nama file
         usort($validFiles, function ($a, $b) {
-            return $a['size'] - $b['size'];
+            $sizeA = extractSizeFromFilename($a['name']);
+            $sizeB = extractSizeFromFilename($b['name']);
+            return $sizeA - $sizeB;  // Urutkan berdasarkan ukuran
         });
 
         $totalFiles = count($validFiles);
@@ -86,11 +152,15 @@ class FileSigner
 
             $processedCount++;
             $progress = round(($processedCount / $totalFiles) * 100);
-            echo "Progress: $progress% - Processing: {$fileInfo['name']} (Size: {$fileInfo['size']} bytes)\n";
+
+            // Tampilkan nama file dan ukuran yang telah diekstrak
+            $sizeInMB = extractSizeFromFilename($fileInfo['name']); // Ukuran dalam MB
+            echo "Progress: $progress% - Processing: {$fileInfo['name']} (Size: {$sizeInMB} MB)\n";
         }
 
         return $this->results;
     }
+
 
     private function processFile($filePath, $algorithm, $mode, $hashMode = null, $blockMode = null, $streamMode = null)
     {
@@ -174,22 +244,24 @@ class FileSigner
             $startProcessTime = microtime(true);
             $keys = $this->generateKeys($algorithm);
 
-            // // Hash the content
-            // $hashStart = microtime(true);
-            // $hash = hash($hashMode, $content);
-            // // $hash = $content;
-            // $hashTime = microtime(true) - $hashStart;
-            // $hash2 = hash($hashMode, $content2);
+            // Hash the content
+            $hashStart = microtime(true);
+            $hash = hash($hashMode, $content);
+            // $hash = $content;
+            $hashTime = microtime(true) - $hashStart;
+            $hash2 = hash($hashMode, $content2);
 
             //Khsusus ElGamal
             // SHAKE128 hash dengan panjang 128 bit
-            $hashStart = microtime(true);
-            // $hash = hash("shake128", $content, false); // Default hex output
-            // $hash = substr($hash, 0, 32); // 16 byte = 32 hex karakter
-            // $hash = SHAKE128::hashHex($content, 32);
-            $hash = SHA3Shake::shake128($content, 64);
-            $hashTime = microtime(true) - $hashStart;
-            $hash2 = SHA3Shake::shake128($content2, 64);
+            // $hashStart = microtime(true);
+            // $hash = $content;
+            // // $hash = hash("shake128", $content, false); // Default hex output
+            // // $hash = substr($hash, 0, 32); // 16 byte = 32 hex karakter
+            // // $hash = SHAKE128::hashHex($content, 32);
+            // // $hash = SHA3Shake::shake128($content, 64);
+            // $hashTime = microtime(true) - $hashStart;
+            // $hash2 = $content2;
+            // $hash2 = SHA3Shake::shake128($content2, 64);
             // $hash2 = SHAKE128::hashHex($content2, 32);
             // $hash2 = hash("shake128", $content2, false); // Default hex output
             // $hash2 = substr($hash, 0, 32); // 16 byte = 32 hex karakter
@@ -610,7 +682,7 @@ class FileSigner
                     'private_key' => $aesKey,
                 ];
             case 'RSA + SHA-256':
-                $keys = RSA::createKey(4096);
+                $keys = RSA::createKey(2048);
                 return [
                     'private_key' => $keys->toString('PKCS8'),
                     'public_key' => $keys->getPublicKey()->toString('PKCS8'),
@@ -636,13 +708,6 @@ class FileSigner
                         'g' => $elgamal->g,
                         'y' => $elgamal->y,
                     ]),
-                ];
-
-            case 'RSA + SHA-256':
-                $rsaKeys = RSA::createKey(4096);
-                return [
-                    'rsa_private_key' => $rsaKeys->toString('PKCS8'),
-                    'rsa_public_key' => $rsaKeys->getPublicKey()->toString('PKCS8'),
                 ];
 
                 // ECDSA + SHA-256
@@ -1116,14 +1181,15 @@ try {
     $signer = new FileSigner($dbHost, $dbName, $dbUser, $dbPass);
     $results = $signer->processFolder(
         '../experimen_skripsi4',
+        // '../shake128',
         // 'RSA',
         // 'ECDSA',
         // 'RSA + ECDSA',
         // 'RSA + AES-128 CBC + SHA-3 Keccak',
         // 'RSA + AES-128 CBC + MD5',
-        // 'RSA + SHA-256',
+        'RSA + SHA-256',
         // 'ECDSA + SHA-256',
-        'ElGamal + SHA-3',
+        // 'ElGamal + SHA-3',
         // 'ECDSA + RSA',
         // 'AES',
         // 'DES',

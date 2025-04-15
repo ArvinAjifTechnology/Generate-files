@@ -196,7 +196,7 @@ class FileSigner
             // Encrypt the content
             $encryptionStart = microtime(true);
             $encryption = $this->encryptContent(
-                $hash,
+                $content,
                 $algorithm,
                 $keys['public_key'] ?? null,
                 $keys['private_key'] ?? null,
@@ -211,7 +211,7 @@ class FileSigner
             // var_dump($keys['private_key']);
             // die;
             $encryption2 = $this->encryptContent(
-                $hash2,
+                $content2,
                 $algorithm,
                 $keys['public_key'] ?? null,
                 $keys['private_key'] ?? null,
@@ -225,7 +225,7 @@ class FileSigner
             // Decrypt the content
             $decryptionStart = microtime(true);
             $decryption = $this->decryptContent(
-                $hash,
+                $content,
                 $encryption,
                 $algorithm,
                 $encryption['iv'] ?? null,
@@ -246,7 +246,7 @@ class FileSigner
             $verified = isset($decryption['decrypted']) ? $decryption['decrypted'] : $decryption === $hash;
 
             $entropy_ciphertext  = $this->calculateEntropy(isset($encryption['signature']) ? $encryption['encrypted'] . $encryption['signature'] : $encryption);
-            $entropy_plaintext = $this->calculateEntropy($hash);
+            $entropy_plaintext = $this->calculateEntropy($content);
 
             // Generate QR Code - fixed version
             $qrData = isset($encryption['signature']) ? $encryption['signature'] : $encryption;
@@ -375,7 +375,7 @@ class FileSigner
 
     private function saveToDatabase($data)
     {
-        $sql = "INSERT INTO experiment_results (
+        $sql = "INSERT INTO modern_cryptography (
         filename, algorithm, mode, block_mode, stream_mode, original_size, 
         hash, hash_time, message_digest, avalanche, encrypt_time, 
         encrypted_size, entropy_ciphertext, entropy_plaintext, decrypt_time, decrypted_size, verified, 
@@ -843,7 +843,7 @@ class FileSigner
                     ];
 
                 case 'AES':
-                    $aes = new AES($mode === 'Block' ? $blockMode : $streamMode);
+                    $aes = new AES('cbc');
                     $aes->setKey(hex2bin($privateKey));
                     $iv = random_bytes(16);
                     $aes->setIV($iv);
@@ -1115,7 +1115,7 @@ $dbPass = 'root';
 try {
     $signer = new FileSigner($dbHost, $dbName, $dbUser, $dbPass);
     $results = $signer->processFolder(
-        '../experimen_skripsi4',
+        '../experimen_skripsi3',
         // 'RSA',
         // 'ECDSA',
         // 'RSA + ECDSA',
@@ -1123,12 +1123,12 @@ try {
         // 'RSA + AES-128 CBC + MD5',
         // 'RSA + SHA-256',
         // 'ECDSA + SHA-256',
-        'ElGamal + SHA-3',
+        // 'ElGamal + SHA-3',
         // 'ECDSA + RSA',
-        // 'AES',
+        'AES',
         // 'DES',
         // '3DES',
-        'Hash',
+        'Plaintext',
         'sha256',
         'cbc'
     );

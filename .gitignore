@@ -10,4 +10,7 @@ large_files2/
 MD5/
 node_modules/
 sha256/
+shake128/
 **/vendor/
+encrypted**/
+decrypted**/
