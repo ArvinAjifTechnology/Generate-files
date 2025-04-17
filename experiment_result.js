@@ -11,7 +11,7 @@ const dbConfig = {
   database: "kriptografi",
   connectionLimit: 10,
 };
-console.log(crypto.getCurves());
+// console.log(crypto.getCurves());
 // Buat koneksi pool
 const pool = mysql.createPool(dbConfig);
 
@@ -39,47 +39,156 @@ async function decryptAES(encryptedData, key, iv, mode = "cbc") {
     decipher.final(),
   ]);
 }
+async function encrypt3DES(data, keyStr, ivStr) {
+  if (
+    !data ||
+    (typeof data !== "string" && !Buffer.isBuffer(data) && !data?.ciphertext)
+  ) {
+    throw new Error("Data untuk enkripsi 3DES tidak valid");
+  }
+
+  if (!keyStr || !ivStr) {
+    throw new Error("Key dan IV tidak boleh undefined pada encrypt3DES");
+  }
+
+  const key = Buffer.isBuffer(keyStr) ? keyStr : Buffer.from(keyStr, "utf8");
+  const iv = Buffer.isBuffer(ivStr) ? ivStr : Buffer.from(ivStr, "utf8");
+
+  if (key.length !== 24) {
+    throw new Error("Key 3DES harus 24 byte");
+  }
+
+  if (iv.length !== 8) {
+    throw new Error("IV untuk 3DES harus 8 byte");
+  }
+
+  const dataBuffer = Buffer.isBuffer(data)
+    ? data
+    : typeof data === "string"
+    ? Buffer.from(data, "utf8")
+    : data?.ciphertext instanceof Buffer
+    ? data.ciphertext
+    : Buffer.from(data);
+
+  const cipher = crypto.createCipheriv("des-ede3-cbc", key, iv);
+  const encrypted = Buffer.concat([cipher.update(dataBuffer), cipher.final()]);
+  return { ciphertext: encrypted };
+}
+
+async function decrypt3DES(encryptedData, key, iv) {
+  const decipher = crypto.createDecipheriv("des-ede3-cbc", key, iv);
+  return Buffer.concat([
+    decipher.update(encryptedData.ciphertext),
+    decipher.final(),
+  ]);
+}
 
 // ECC Encryption
 async function encryptECC(data, publicKey) {
   // Create ECDH instance and generate keys
-  const ecdh = crypto.createECDH('c2pnb163v3');
+  const ecdh = crypto.createECDH("c2pnb163v3");
   const ecdhPrivateKey = ecdh.generateKeys();
   const ecdhPublicKey = ecdh.getPublicKey();
-  
+
   // Derive shared secret
   const sharedSecret = ecdh.computeSecret(publicKey, "base64");
-  
+
   // Use the shared secret to create an AES key
-  const derivedKey = crypto.createHash('sha256').update(sharedSecret).digest();
+  const derivedKey = crypto.createHash("sha256").update(sharedSecret).digest();
   const iv = crypto.randomBytes(16);
-  
+
   // Encrypt the data with AES
-  const cipher = crypto.createCipheriv('aes-256-cbc', derivedKey, iv);
+  const cipher = crypto.createCipheriv("aes-256-cbc", derivedKey, iv);
   const encrypted = Buffer.concat([cipher.update(data), cipher.final()]);
-  
+
   return {
     ciphertext: encrypted,
     publicKey: ecdhPublicKey,
-    iv: iv
+    iv: iv,
   };
 }
 
 // ECC Decryption
 async function decryptECC(encryptedData, privateKey) {
   // Create ECDH instance with our private key
-  const ecdh = crypto.createECDH('c2pnb163v3');
+  const ecdh = crypto.createECDH("c2pnb163v3");
   ecdh.setPrivateKey(privateKey, "base64");
-  
+
   // Derive shared secret
   const sharedSecret = ecdh.computeSecret(encryptedData.publicKey, "base64");
-  
+
   // Use the shared secret to create an AES key
-  const derivedKey = crypto.createHash('sha256').update(sharedSecret).digest();
-  
+  const derivedKey = crypto.createHash("sha256").update(sharedSecret).digest();
+
   // Decrypt the data with AES
-  const decipher = crypto.createDecipheriv('aes-256-cbc', derivedKey, encryptedData.iv);
-  return Buffer.concat([decipher.update(encryptedData.ciphertext), decipher.final()]);
+  const decipher = crypto.createDecipheriv(
+    "aes-256-cbc",
+    derivedKey,
+    encryptedData.iv
+  );
+  return Buffer.concat([
+    decipher.update(encryptedData.ciphertext),
+    decipher.final(),
+  ]);
+}
+
+// AES + 3DES Encryption (two-step)
+async function encryptAES3DES(
+  data,
+  aesKey,
+  aesIv,
+  desKey,
+  desIv,
+  mode = "cbc"
+) {
+  // Step 1: AES Encryption
+  const aesCipher = crypto.createCipheriv(
+    `aes-256-${mode.toLowerCase()}`,
+    aesKey,
+    aesIv
+  );
+  const aesEncrypted = Buffer.concat([
+    aesCipher.update(data),
+    aesCipher.final(),
+  ]);
+
+  // Step 2: 3DES Encryption
+  const desCipher = crypto.createCipheriv("des-ede3-cbc", desKey, desIv);
+  const doubleEncrypted = Buffer.concat([
+    desCipher.update(aesEncrypted),
+    desCipher.final(),
+  ]);
+
+  return {
+    ciphertext: doubleEncrypted,
+    aesIv,
+    desIv,
+  };
+}
+
+// AES + 3DES Decryption (reverse order)
+async function decryptAES3DES(
+  encryptedData,
+  aesKey,
+  desKey,
+  aesIv,
+  desIv,
+  mode = "cbc"
+) {
+  // Step 1: 3DES Decryption
+  const desDecipher = crypto.createDecipheriv("des-ede3-cbc", desKey, desIv);
+  const aesEncrypted = Buffer.concat([
+    desDecipher.update(encryptedData.ciphertext),
+    desDecipher.final(),
+  ]);
+
+  // Step 2: AES Decryption
+  const aesDecipher = crypto.createDecipheriv(
+    `aes-256-${mode.toLowerCase()}`,
+    aesKey,
+    aesIv
+  );
+  return Buffer.concat([aesDecipher.update(aesEncrypted), aesDecipher.final()]);
 }
 // Hybrid AES+ECC Encryption
 async function encryptHybridAESECC(data, keys, mode = "cbc") {
@@ -101,7 +210,6 @@ async function encryptHybridAESECC(data, keys, mode = "cbc") {
     eccIv: encryptedKey.iv,
   };
 }
-
 
 // Hybrid AES+ECC Decryption
 async function decryptHybridAESECC(encryptedData, keys) {
@@ -128,7 +236,7 @@ async function verifyDatabaseSchema() {
   const connection = await pool.getConnection();
   try {
     await connection.query(`
-      CREATE TABLE IF NOT EXISTS enkripsi_data_node_js (
+      CREATE TABLE IF NOT EXISTS modern_cryptography (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
         filename VARCHAR(255) NOT NULL,
         algorithm VARCHAR(50) NOT NULL,
@@ -168,14 +276,16 @@ async function verifyDatabaseSchema() {
 
 // ========== MAIN PROCESSING FUNCTIONS ==========
 async function processFilesFromFolder(
-  folderPath,
+  folderPath = "./modern_cryptography/",
   algorithm,
   mode,
   blockMode = null
 ) {
   try {
+    // Buat folder jika belum ada
     if (!fs.existsSync(folderPath)) {
-      throw new Error(`Folder tidak ditemukan: ${folderPath}`);
+      fs.mkdirSync(folderPath, { recursive: true });
+      console.log(`Folder baru dibuat: ${folderPath}`);
     }
 
     const algorithmFolder = `./encrypted_${algorithm.toLowerCase()}`;
@@ -184,26 +294,33 @@ async function processFilesFromFolder(
     if (!fs.existsSync(algorithmFolder)) fs.mkdirSync(algorithmFolder);
     if (!fs.existsSync(decryptedFolder)) fs.mkdirSync(decryptedFolder);
 
-    const files = fs.readdirSync(folderPath);
+    // Ambil semua file dan urutkan berdasarkan ukuran dari kecil ke besar
+    const files = fs
+      .readdirSync(folderPath)
+      .map((file) => {
+        const fullPath = path.join(folderPath, file);
+        const stats = fs.statSync(fullPath);
+        return { file, size: stats.size, isFile: stats.isFile() };
+      })
+      .filter((f) => f.isFile)
+      .sort((a, b) => a.size - b.size) // urutan dari kecil ke besar
+      .map((f) => f.file);
+
     const results = [];
 
     for (const file of files) {
       const filePath = path.join(folderPath, file);
-      const stats = fs.statSync(filePath);
-
-      if (stats.isFile()) {
-        console.log(`Memproses file: ${file}`);
-        const result = await processSingleFile(
-          filePath,
-          algorithm,
-          mode,
-          blockMode,
-          algorithmFolder,
-          decryptedFolder
-        );
-        results.push(result);
-        await storeResultInDatabase(result);
-      }
+      console.log(`Memproses file: ${file}`);
+      const result = await processSingleFile(
+        filePath,
+        algorithm,
+        mode,
+        blockMode,
+        algorithmFolder,
+        decryptedFolder
+      );
+      results.push(result);
+      await storeResultInDatabase(result);
     }
 
     return results;
@@ -329,6 +446,22 @@ function generateEncryptionKey(algorithm, blockMode) {
         type: "asymmetric",
       };
 
+    case "3DES":
+      return {
+        key: crypto.randomBytes(24), // 3DES = 192 bit (24 byte)
+        iv: crypto.randomBytes(8), // IV untuk 3DES biasanya 8 byte
+        type: "symmetric",
+      };
+
+    case "AES+3DES":
+      return {
+        aesKey: crypto.randomBytes(32),
+        aesIv: crypto.randomBytes(16),
+        desKey: crypto.randomBytes(24),
+        desIv: crypto.randomBytes(8),
+        type: "hybrid",
+      };
+
     case "AES+ECC":
       const hybridAesKey = crypto.randomBytes(32); // AES-256
       const hybridAesIv = blockMode ? crypto.randomBytes(16) : null;
@@ -355,11 +488,27 @@ function generateEncryptionKey(algorithm, blockMode) {
 
 async function encryptData(data, algorithm, key, iv, mode, blockMode) {
   try {
+    // const encryptedAES = await encryptAES(data, { key: aesKey, iv: aesIv });
+    // const encrypted3DES = await encrypt3DES(encryptedAES, desKey, desIv);
     switch (algorithm.toUpperCase()) {
       case "AES":
         return await encryptAES(data, key, iv, blockMode || "cbc");
       case "ECC":
         return await encryptECC(data, key.publicKey);
+      case "3DES":
+        console.log("3DES Key:", key.key);
+        console.log("3DES IV:", key.iv);
+        return await encrypt3DES(data, key.key, key.iv);
+
+      case "AES+3DES":
+        const encryptedAES = await encryptAES(
+          data,
+          key.aesKey,
+          key.aesIv,
+          blockMode || "cbc"
+        );
+        return await encrypt3DES(encryptedAES, key.desKey, key.desIv);
+
       case "AES+ECC":
         return await encryptHybridAESECC(data, key, blockMode || "cbc");
       default:
@@ -378,6 +527,19 @@ async function decryptData(encryptedData, algorithm, key, iv, mode, blockMode) {
         return await decryptAES(encryptedData, key, iv, blockMode || "cbc");
       case "ECC":
         return await decryptECC(encryptedData, key.privateKey);
+
+      case "3DES":
+        return await decrypt3DES(encryptedData, key.key, key.iv);
+
+      case "AES+3DES":
+        return await decryptAES3DES(
+          encryptedData,
+          key.aesKey,
+          key.aesIv,
+          key.desKey,
+          key.desIv,
+          blockMode
+        );
       case "AES+ECC":
         return await decryptHybridAESECC(data, key, blockMode || "cbc");
       default:
@@ -425,7 +587,7 @@ function calculateAvalancheEffect(data1, data2) {
 async function storeResultInDatabase(result) {
   const connection = await pool.getConnection();
   try {
-    await connection.query(`INSERT INTO enkripsi_data_node_js SET ?`, [result]);
+    await connection.query(`INSERT INTO modern_cryptography SET ?`, [result]);
   } catch (error) {
     console.error("Error database:", error);
     throw error;
@@ -440,7 +602,7 @@ async function storeResultInDatabase(result) {
     await verifyDatabaseSchema();
     const results = await processFilesFromFolder(
       "./large_files2",
-      "AES+ECC",
+      "3DES",
       "CBC",
       "CBC"
     );

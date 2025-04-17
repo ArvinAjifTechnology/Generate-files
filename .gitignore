@@ -12,5 +12,5 @@ node_modules/
 sha256/
 shake128/
 **/vendor/
-encrypted**/
-decrypted**/
+**/encrypted**/
+**/decrypted**/
