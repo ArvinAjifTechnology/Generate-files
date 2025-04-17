@@ -133,14 +133,12 @@ async function decryptECC(encryptedData, privateKey) {
 }
 
 // AES + 3DES Encryption (two-step)
-async function encryptAES3DES(
-  data,
-  aesKey,
-  aesIv,
-  desKey,
-  desIv,
-  mode = "cbc"
-) {
+async function encryptAES3DES(data, aesKey, aesIv, desKey, desIv, mode = "cbc") {
+  // Validate inputs
+  if (!aesKey || !aesIv || !desKey || !desIv) {
+    throw new Error("All keys and IVs must be provided for AES+3DES encryption");
+  }
+
   // Step 1: AES Encryption
   const aesCipher = crypto.createCipheriv(
     `aes-256-${mode.toLowerCase()}`,
@@ -161,20 +159,18 @@ async function encryptAES3DES(
 
   return {
     ciphertext: doubleEncrypted,
-    aesIv,
-    desIv,
+    aesIv: aesIv,
+    desIv: desIv,
   };
 }
 
 // AES + 3DES Decryption (reverse order)
-async function decryptAES3DES(
-  encryptedData,
-  aesKey,
-  desKey,
-  aesIv,
-  desIv,
-  mode = "cbc"
-) {
+async function decryptAES3DES(encryptedData, aesKey, desKey, aesIv, desIv, mode = "cbc") {
+  // Validate inputs
+  if (!aesKey || !aesIv || !desKey || !desIv) {
+    throw new Error("All keys and IVs must be provided for AES+3DES decryption");
+  }
+
   // Step 1: 3DES Decryption
   const desDecipher = crypto.createDecipheriv("des-ede3-cbc", desKey, desIv);
   const aesEncrypted = Buffer.concat([
@@ -455,13 +451,12 @@ function generateEncryptionKey(algorithm, blockMode) {
 
     case "AES+3DES":
       return {
-        aesKey: crypto.randomBytes(32),
-        aesIv: crypto.randomBytes(16),
-        desKey: crypto.randomBytes(24),
-        desIv: crypto.randomBytes(8),
+        aesKey: crypto.randomBytes(32), // 256-bit AES key
+        aesIv: crypto.randomBytes(16), // 128-bit AES IV
+        desKey: crypto.randomBytes(24), // 192-bit 3DES key
+        desIv: crypto.randomBytes(8), // 64-bit 3DES IV
         type: "hybrid",
       };
-
     case "AES+ECC":
       const hybridAesKey = crypto.randomBytes(32); // AES-256
       const hybridAesIv = blockMode ? crypto.randomBytes(16) : null;
@@ -501,10 +496,12 @@ async function encryptData(data, algorithm, key, iv, mode, blockMode) {
         return await encrypt3DES(data, key.key, key.iv);
 
       case "AES+3DES":
-        const encryptedAES = await encryptAES(
+        return await encryptAES3DES(
           data,
           key.aesKey,
           key.aesIv,
+          key.desKey,
+          key.desIv,
           blockMode || "cbc"
         );
         return await encrypt3DES(encryptedAES, key.desKey, key.desIv);
@@ -535,10 +532,10 @@ async function decryptData(encryptedData, algorithm, key, iv, mode, blockMode) {
         return await decryptAES3DES(
           encryptedData,
           key.aesKey,
-          key.aesIv,
           key.desKey,
+          key.aesIv,
           key.desIv,
-          blockMode
+          blockMode || "cbc"
         );
       case "AES+ECC":
         return await decryptHybridAESECC(data, key, blockMode || "cbc");
@@ -602,7 +599,7 @@ async function storeResultInDatabase(result) {
     await verifyDatabaseSchema();
     const results = await processFilesFromFolder(
       "./large_files2",
-      "3DES",
+      "AES+3DES",
       "CBC",
       "CBC"
     );
