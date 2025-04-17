@@ -83,26 +83,54 @@ async function decrypt3DES(encryptedData, key, iv) {
   ]);
 }
 
-// Fungsi untuk enkripsi menggunakan ECC
-function encryptECC(data, publicKey) {
-    const ec = crypto.createECDH("secp521r1"); // Membuat objek ECDH dengan kurva secp521r1
-    const ecdhPublicKey = ec.getPublicKey(); // Mengambil public key dari ECDH
+// ECC Encryption
+async function encryptECC(data, publicKey) {
+  // Create ECDH instance and generate keys
+  const ecdh = crypto.createECDH("secp521r1");
+  const ecdhPrivateKey = ecdh.generateKeys();
+  const ecdhPublicKey = ecdh.getPublicKey();
 
-    // Menggunakan public key dari pihak penerima untuk enkripsi
-    const encrypted = crypto.publicEncrypt(publicKey, Buffer.from(data));
+  // Derive shared secret
+  const sharedSecret = ecdh.computeSecret(publicKey, "base64");
 
-    return {
-        ciphertext: encrypted.toString("base64"),  // Mengembalikan ciphertext yang telah dienkripsi
-        ecdhPublicKey: ecdhPublicKey.toString("base64") // Menyertakan public key untuk dekripsi
-    };
+  // Use the shared secret to create an AES key
+  const derivedKey = crypto.createHash("sha256").update(sharedSecret).digest();
+  const iv = crypto.randomBytes(16);
+
+  // Encrypt the data with AES
+  const cipher = crypto.createCipheriv("aes-256-cbc", derivedKey, iv);
+  const encrypted = Buffer.concat([cipher.update(data), cipher.final()]);
+
+  return {
+    ciphertext: encrypted,
+    publicKey: ecdhPublicKey,
+    iv: iv,
+  };
 }
 
-// Fungsi untuk dekripsi menggunakan ECC
-function decryptECC(encryptedData, privateKey) {
-    const decrypted = crypto.privateDecrypt(privateKey, Buffer.from(encryptedData, "base64"));
-    return decrypted.toString(); // Mengembalikan data yang sudah didekripsi
-}
+// ECC Decryption
+async function decryptECC(encryptedData, privateKey) {
+  // Create ECDH instance with our private key
+  const ecdh = crypto.createECDH("secp521r1");
+  ecdh.setPrivateKey(privateKey, "base64");
 
+  // Derive shared secret
+  const sharedSecret = ecdh.computeSecret(encryptedData.publicKey, "base64");
+
+  // Use the shared secret to create an AES key
+  const derivedKey = crypto.createHash("sha256").update(sharedSecret).digest();
+
+  // Decrypt the data with AES
+  const decipher = crypto.createDecipheriv(
+    "aes-256-cbc",
+    derivedKey,
+    encryptedData.iv
+  );
+  return Buffer.concat([
+    decipher.update(encryptedData.ciphertext),
+    decipher.final(),
+  ]);
+}
 
 // AES + 3DES Encryption (two-step)
 async function encryptAES3DES(data, aesKey, aesIv, desKey, desIv, mode = "cbc") {
