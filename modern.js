@@ -84,60 +84,53 @@ async function decrypt3DES(encryptedData, key, iv) {
 }
 
 // ECC Encryption
-async function encryptECC(data, peerPublicKeyPem) {
-  // Membaca kunci publik penerima dari format PEM
-  const peerPublicKey = ec.keyFromPublic(peerPublicKeyPem, "pem");
+async function encryptECC(data, publicKey) {
+  // Create ECDH instance and generate keys
+  const ecdh = crypto.createECDH("secp521r1");
+  const ecdhPrivateKey = ecdh.generateKeys();
+  const ecdhPublicKey = ecdh.getPublicKey();
 
-  // Membuat kunci sementara untuk ECDH (kunci privat sementara untuk pengirim)
-  const ephemeralKey = ec.genKeyPair();
+  // Derive shared secret
+  const sharedSecret = ecdh.computeSecret(publicKey, "base64");
 
-  // Menghasilkan shared secret dari ECDH (kunci simetris sementara)
-  const sharedSecret = ephemeralKey.derive(peerPublicKey.getPublic());
+  // Use the shared secret to create an AES key
+  const derivedKey = crypto.createHash("sha256").update(sharedSecret).digest();
+  const iv = crypto.randomBytes(16);
 
-  // Hash shared secret untuk menghasilkan kunci simetris dan nonce
-  const symKey = sha512(sharedSecret.toString("hex"));
-  const nonce = generateNonce();
+  // Encrypt the data with AES
+  const cipher = crypto.createCipheriv("aes-256-cbc", derivedKey, iv);
+  const encrypted = Buffer.concat([cipher.update(data), cipher.final()]);
 
-  // Mengenkripsi data menggunakan kunci simetris
-  const ciphertext = encryptWithSymmetricKey(symKey, nonce, data);
-
-  // Mengembalikan ciphertext, tag autentikasi, kunci publik sementara, dan nonce
   return {
-    ciphertext: ciphertext,
-    ephemeralPublicKey: ephemeralKey.getPublic("pem"),
-    nonce: nonce,
+    ciphertext: encrypted,
+    publicKey: ecdhPublicKey,
+    iv: iv,
   };
 }
 
-
 // ECC Decryption
-async function decryptECC(encryptedData, ourPrivateKeyPem) {
-  // Membaca kunci privat penerima dari format PEM
-  const ourPrivateKey = ec.keyFromPrivate(ourPrivateKeyPem, "pem");
+async function decryptECC(encryptedData, privateKey) {
+  // Create ECDH instance with our private key
+  const ecdh = crypto.createECDH("secp521r1");
+  ecdh.setPrivateKey(privateKey, "base64");
 
-  // Membaca kunci publik sementara dari pengirim
-  const ephemeralPublicKey = ec.keyFromPublic(
-    encryptedData.ephemeralPublicKey,
-    "pem"
+  // Derive shared secret
+  const sharedSecret = ecdh.computeSecret(encryptedData.publicKey, "base64");
+
+  // Use the shared secret to create an AES key
+  const derivedKey = crypto.createHash("sha256").update(sharedSecret).digest();
+
+  // Decrypt the data with AES
+  const decipher = crypto.createDecipheriv(
+    "aes-256-cbc",
+    derivedKey,
+    encryptedData.iv
   );
-
-  // Menghasilkan shared secret dari ECDH menggunakan kunci privat dan kunci publik sementara
-  const sharedSecret = ourPrivateKey.derive(ephemeralPublicKey.getPublic());
-
-  // Hash shared secret untuk mendapatkan kunci simetris
-  const symKey = sha512(sharedSecret.toString("hex"));
-  const nonce = encryptedData.nonce;
-
-  // Mendekripsi data menggunakan kunci simetris yang sama
-  const decryptedData = decryptWithSymmetricKey(
-    symKey,
-    nonce,
-    encryptedData.ciphertext
-  );
-
-  return decryptedData;
+  return Buffer.concat([
+    decipher.update(encryptedData.ciphertext),
+    decipher.final(),
+  ]);
 }
-
 
 // AES + 3DES Encryption (two-step)
 async function encryptAES3DES(data, aesKey, aesIv, desKey, desIv, mode = "cbc") {
