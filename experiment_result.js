@@ -86,7 +86,7 @@ async function decrypt3DES(encryptedData, key, iv) {
 // ECC Encryption
 async function encryptECC(data, publicKey) {
   // Create ECDH instance and generate keys
-  const ecdh = crypto.createECDH("c2pnb163v3");
+  const ecdh = crypto.createECDH("secp521r1");
   const ecdhPrivateKey = ecdh.generateKeys();
   const ecdhPublicKey = ecdh.getPublicKey();
 
@@ -111,7 +111,7 @@ async function encryptECC(data, publicKey) {
 // ECC Decryption
 async function decryptECC(encryptedData, privateKey) {
   // Create ECDH instance with our private key
-  const ecdh = crypto.createECDH("c2pnb163v3");
+  const ecdh = crypto.createECDH("secp521r1");
   ecdh.setPrivateKey(privateKey, "base64");
 
   // Derive shared secret
@@ -272,7 +272,7 @@ async function verifyDatabaseSchema() {
 
 // ========== MAIN PROCESSING FUNCTIONS ==========
 async function processFilesFromFolder(
-  folderPath = "./modern_cryptography/",
+  folderPath,
   algorithm,
   mode,
   blockMode = null
@@ -284,11 +284,26 @@ async function processFilesFromFolder(
       console.log(`Folder baru dibuat: ${folderPath}`);
     }
 
-    const algorithmFolder = `./encrypted_${algorithm.toLowerCase()}`;
-    const decryptedFolder = `./decrypted_${algorithm.toLowerCase()}`;
+    // Create modern_cryptography directory if it doesn't exist
+    const modernCryptoDir = "./modern_cryptography";
+    if (!fs.existsSync(modernCryptoDir)) {
+      fs.mkdirSync(modernCryptoDir, { recursive: true });
+      console.log(`Folder modern_cryptography dibuat`);
+    }
 
-    if (!fs.existsSync(algorithmFolder)) fs.mkdirSync(algorithmFolder);
-    if (!fs.existsSync(decryptedFolder)) fs.mkdirSync(decryptedFolder);
+    const algorithmFolder = path.join(
+      modernCryptoDir,
+      `encrypted_${algorithm.toLowerCase()}`
+    );
+    const decryptedFolder = path.join(
+      modernCryptoDir,
+      `decrypted_${algorithm.toLowerCase()}`
+    );
+
+    if (!fs.existsSync(algorithmFolder))
+      fs.mkdirSync(algorithmFolder, { recursive: true });
+    if (!fs.existsSync(decryptedFolder))
+      fs.mkdirSync(decryptedFolder, { recursive: true });
 
     // Ambil semua file dan urutkan berdasarkan ukuran dari kecil ke besar
     const files = fs
@@ -325,7 +340,6 @@ async function processFilesFromFolder(
     throw error;
   }
 }
-
 async function processSingleFile(
   filePath,
   algorithm,
@@ -393,31 +407,32 @@ async function processSingleFile(
     encryptedModified.ciphertext.slice(0, sampleSize)
   );
 
-  const result = {
-    filename,
-    algorithm,
-    mode,
-    block_mode: blockMode,
-    original_size: originalSize,
-    encrypt_time: encryptTime,
-    encrypted_size: encrypted.ciphertext.length,
-    decrypt_time: decryptTime,
-    entropy_ciphertext: entropyCiphertext,
-    entropy_plaintext: entropyPlaintext,
-    avalanche_effect: avalancheEffect,
-    verified: Buffer.compare(decrypted, content) === 0 ? "Valid" : "Invalid",
-    total_process_time: Date.now() - startTime,
-    ciphertext_path: ciphertextPath,
-    decrypted_path: decryptedPath,
-    encryption_key: keys.key || null,
-    iv: keys.iv || null,
-    public_key: keys.publicKey || null,
-    private_key: keys.privateKey || null,
-    aes_key: keys.aesKey || null,
-    aes_iv: keys.aesIv || null,
-    ecc_public_key: keys.eccPublicKey || null,
-    ecc_private_key: keys.eccPrivateKey || null,
-  };
+const result = {
+  filename,
+  algorithm,
+  mode,
+  block_mode: blockMode,
+  original_size: originalSize,
+  encrypt_time: (encryptTime / 1000).toFixed(8), // dalam detik
+  encrypted_size: encrypted.ciphertext.length,
+  decrypt_time: (decryptTime / 1000).toFixed(8), // dalam detik
+  entropy_ciphertext: entropyCiphertext,
+  entropy_plaintext: entropyPlaintext,
+  avalanche_effect: avalancheEffect,
+  verified: Buffer.compare(decrypted, content) === 0 ? "Valid" : "Invalid",
+  total_process_time: ((Date.now() - startTime) / 1000).toFixed(8), // dalam detik
+  ciphertext_path: ciphertextPath,
+  decrypted_path: decryptedPath,
+  encryption_key: keys.key || null,
+  iv: keys.iv || null,
+  public_key: keys.publicKey || null,
+  private_key: keys.privateKey || null,
+  aes_key: keys.aesKey || null,
+  aes_iv: keys.aesIv || null,
+  ecc_public_key: keys.eccPublicKey || null,
+  ecc_private_key: keys.eccPrivateKey || null,
+};
+
 
   return result;
 }
@@ -433,7 +448,7 @@ function generateEncryptionKey(algorithm, blockMode) {
       };
 
     case "ECC":
-      const ecdh = crypto.createECDH("c2pnb163v3");
+      const ecdh = crypto.createECDH("secp521r1");
       const publicKey = ecdh.generateKeys("base64");
       const privateKey = ecdh.getPrivateKey("base64");
       return {
@@ -463,7 +478,7 @@ function generateEncryptionKey(algorithm, blockMode) {
 
       const { publicKey: eccPubKey, privateKey: eccPrivKey } =
         crypto.generateKeyPairSync("ec", {
-          namedCurve: "c2pnb163v3",
+          namedCurve: "secp521r1",
           publicKeyEncoding: { type: "spki", format: "pem" },
           privateKeyEncoding: { type: "pkcs8", format: "pem" },
         });
@@ -599,7 +614,7 @@ async function storeResultInDatabase(result) {
     await verifyDatabaseSchema();
     const results = await processFilesFromFolder(
       "./large_files2",
-      "AES+3DES",
+      "ECC",
       "CBC",
       "CBC"
     );
