@@ -614,7 +614,7 @@ async function storeResultInDatabase(result) {
     await verifyDatabaseSchema();
     const results = await processFilesFromFolder(
       "./large_files2",
-      "ECC",
+      "AES+3DES",
       "CBC",
       "CBC"
     );
